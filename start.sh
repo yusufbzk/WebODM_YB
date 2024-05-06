@@ -21,8 +21,8 @@ almost_there(){
 # Check python version
 python -c "import sys;ret = 1 if sys.version_info <= (3, 0) else 0;print('Checking python version... ' + ('3.x, good!' if ret == 0 else '2.x'));sys.exit(ret);"
 if [ $? -ne 0 ]; then
-    almost_there
-    echo -e "\033[33mYour system is currently using Python 2.x. You need to install or configure your system to use Python 3.x. Check out http://docs.python-guide.org/en/latest/dev/virtualenvs/ for information on how to set up Python 3.x alongside your Python 2.x install.\033[39m"
+	almost_there
+    echo -e "\033[33mYour system is currently using Python 2.x. You need to install or configure your system to use Python 3.x. Check out http://docs.python-guide.org/en/latest/dev/virtualenvs/ for information on how to setup Python 3.x alongside your Python 2.x install.\033[39m"
     echo
     exit
 fi
@@ -30,17 +30,18 @@ fi
 # Check GDAL version
 python -c "import sys;import re;import subprocess;version = subprocess.Popen([\"gdalinfo\", \"--version\"], stdout=subprocess.PIPE).communicate()[0].decode().rstrip();ret = 0 if re.compile('^GDAL [2-9]\.[0-9]+').match(version) else 1; print('Checking GDAL version... ' + ('{}, excellent!'.format(version) if ret == 0 else version));sys.exit(ret);"
 if [ $? -ne 0 ]; then
-    almost_there
+	almost_there
     echo -e "\033[33mYour system is currently using a version of GDAL that is too old, or GDAL is not installed. You need to install or configure your system to use GDAL 2.1 or higher. If you have installed multiple versions of GDAL, make sure the newer one takes priority in your PATH environment variable.\033[39m"
     echo
     exit
 fi
 
 if [ "$1" = "--setup-devenv" ] || [ "$2" = "--setup-devenv" ]; then
-    echo "Setup git modules..."
+    echo Setup git modules...
+    
     git submodule update --init
     
-    echo "Setup npm dependencies..."
+    echo Setup npm dependencies...
     npm install
 
     cd nodeodm/external/NodeODM
@@ -48,22 +49,23 @@ if [ "$1" = "--setup-devenv" ] || [ "$2" = "--setup-devenv" ]; then
 
     cd /webodm
 
-    echo "Setup pip requirements..."
+    echo Setup pip requirements...
     pip install -r requirements.txt
 
-    echo "Build translations..."
+    echo Build translations...
     python manage.py translate build --safe
 
-    echo "Setup webpack watch..."
+    echo Setup webpack watch...
     webpack --watch &
 fi
 
-echo "Running migrations"
+echo Running migrations
 python manage.py migrate
 
 if [[ "$WO_DEFAULT_NODES" > 0 ]]; then
     i=0
-    while [ $i -ne "$WO_DEFAULT_NODES" ]; do
+    while [ $i -ne "$WO_DEFAULT_NODES" ]
+    do
         i=$(($i+1))
         NODE_HOST=$(python manage.py getnodehostname webodm_node-odm_$i)
         python manage.py addnode $NODE_HOST 3000 --label node-odm-$i
@@ -110,7 +112,7 @@ congrats(){
     fi
 
     echo -e "\033[93m"
-    echo "Open a web browser and navigate to $proto://$WO_HOST:$WO_PORT"
+    echo Open a web browser and navigate to $proto://$WO_HOST:$WO_PORT
     echo -e "\033[39m") &
 }
 
@@ -118,6 +120,35 @@ if [ "$1" = "--setup-devenv" ] || [ "$2" = "--setup-devenv" ] || [ "$1" = "--no-
     congrats
     python manage.py runserver 0.0.0.0:8000
 else
+    if [ -e /webodm ] && [ ! -e /webodm/build/static ]; then
+       echo -e "\033[91mWARN:\033[39m /webodm/build/static does not exist, CSS, JS and other files might not be available."
+    fi
+
+    echo "Generating nginx configurations from templates..."
+    for templ in nginx/*.template
+    do
+        echo "- ${templ%.*}"
+        envsubst '\$WO_PORT \$WO_HOST' < $templ > ${templ%.*}
+    done
+
+    # Check if we need to auto-generate SSL certs via letsencrypt
+    if [ "$WO_SSL" = "YES" ] && [ -z "$WO_SSL_KEY" ]; then
+        echo "Launching letsencrypt-autogen.sh"
+        ./nginx/letsencrypt-autogen.sh
+    fi
+
+    # Check if SSL key/certs are available
+    conf="nginx.conf"
+    if [ -e nginx/ssl ]; then
+        echo "Using nginx SSL configuration"
+        conf="nginx-ssl.conf"
+    fi
+
     congrats
-    gunicorn webodm.wsgi --bind 0.0.0.0:8000 --timeout 300000 --max-requests 500 --workers $((2*$(grep -c '^processor' /proc/cpuinfo)+1)) --preload
-fi
+
+    nginx -c $(pwd)/nginx/$conf
+ gunicorn webodm.wsgi --bind 0.0.0.0:8000 --timeout 300000 --max-requests 500 --workers $((2*$(grep -c '^processor' /proc/cpuinfo)+1)) --preload
+ fi
+
+# If this is executed, it means the previous command failed, don't display the congratulations message
+kill %1
