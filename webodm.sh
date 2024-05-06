@@ -265,12 +265,12 @@ if [[ $gpu = true ]]; then
 	prepare_intel_render_group
 fi
 
-docker_compose="docker-compose"
+docker_compose="docker compose"
 check_docker_compose(){
 	dc_msg_ok="\033[92m\033[1m OK\033[0m\033[39m"
 
 	# Check if docker-compose exists
-	hash "docker-compose" 2>/dev/null || not_found=true
+	hash "docker compose" 2>/dev/null || not_found=true
 	if [[ $not_found ]]; then
 		# Check if compose plugin is installed
 		if ! docker compose > /dev/null 2>&1; then
@@ -295,7 +295,7 @@ check_docker_compose(){
 			docker_compose="docker compose"
 		fi
 	else
-		docker_compose="docker-compose"
+		docker_compose="docker compose"
 	fi
 
 	if [ -z "$1" ]; then
