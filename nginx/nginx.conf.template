@@ -23,8 +23,8 @@ http {
     # fail_timeout=0 means we always retry an upstream even if it failed
     # to return a good HTTP response
 
-    # for UNIX domain socket setups
-    server unix:/tmp/gunicorn.sock fail_timeout=0;
+    # for TCP setup
+    server 127.0.0.1:8001 fail_timeout=0;
   }
 
   server {
